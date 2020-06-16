@@ -6,9 +6,9 @@ _pkgrel="0"
 pkgrel="0"
 pkgdesc="GNU C Library compatibility layer"
 arch="x86_64"
-url="https://github.com/sgerrand/alpine-pkg-glibc"
+url="https://github.com/gravitational/alpine-pkg-glibc"
 license="LGPL"
-source="https://github.com/sgerrand/docker-glibc-builder/releases/download/$pkgver-$_pkgrel/glibc-bin-$pkgver-$_pkgrel-x86_64.tar.gz
+source="https://github.com/gravitational/docker-glibc-builder/releases/download/$pkgver-$_pkgrel/glibc-bin-$pkgver-$_pkgrel-x86_64.tar.gz
 nsswitch.conf
 ld.so.conf"
 subpackages="$pkgname-bin $pkgname-dev $pkgname-i18n"
