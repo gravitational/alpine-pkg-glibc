@@ -15,7 +15,7 @@ workspace:
   path: /alpine-pkg-glibc
 
 steps:
-  - name: Download public signing key
+  - name: Build package
     image: docker:git
     environment:
       ALPINE_VERSION: 3.11
@@ -29,7 +29,7 @@ steps:
     - cd /alpine-pkg-glibc
     # download public signing key
     - wget https://gist.githubusercontent.com/webvictim/a02fe5a0146e381307b5cb6901b617b1/raw/790df9d2ce758793d3df96d7cda570c69eecabbf/gravitational.rsa.pub
-    - echo "7d8a43857988950fdd6767b165b098c46a59cf4c6f8b823edecc292f40b4016c  gravitational.rsa.pub" | sha256sum -c -
+    - echo "0738b94e843f9bd40a3db9f6ec97383ade8080290daf505b16283af4c2734699  gravitational.rsa.pub" | sha256sum -c -
     # create docker volumes
     - docker create --name input --volume /home/builder/package alpine:$ALPINE_VERSION /bin/true
     - docker cp . input:/home/builder/package/
@@ -170,6 +170,6 @@ steps:
 
 ---
 kind: signature
-hmac: 57a5b8ca93e85eb627acbfd0de7163992ee327a2ea3aada76f5db2bd5d58c270
+hmac: a37ff87ea571b9c1990c475e26e6e4b7d55514e41634e57820f946c83e5b932c
 
 ...
