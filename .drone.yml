@@ -10,6 +10,9 @@ trigger:
     exclude:
       - promote
       - rollback
+  ref:
+    exclude:
+      - refs/tags/unreleased
 
 workspace:
   path: /alpine-pkg-glibc
@@ -58,73 +61,7 @@ steps:
     - docker rm input
     - docker rm output
 
-services:
-  - name: Start Docker
-    image: docker:dind
-    privileged: true
-    volumes:
-      - name: dockersock
-        path: /var/run
-
-volumes:
-  - name: dockersock
-    temp: {}
-
----
-kind: pipeline
-type: kubernetes
-name: doctests
-
-trigger:
-  branch:
-    - master
-  event:
-    exclude:
-      - promote
-      - rollback
-
-depends_on:
-  - build
-
-workspace:
-  path: /alpine-pkg-glibc
-
-steps:
-  - name: Run tests
-    image: alpine:latest
-    commands:
-      - cd /alpine-pkg-glibc
-      # install required packages
-      - apk add --no-cache git openssh-client
-      # parse and run installation steps
-      - |
-        while read line
-        do
-          echo "$line" | sed -e '/^[#:]/D' -e '/^$/D' -e '/^apk/p' -e '/^wget/p' -e '/^[A-z]/D' | sh -ex
-        done < README.md
-
----
-kind: pipeline
-type: kubernetes
-name: upload-master
-
-trigger:
-  branch:
-    - master
-  event:
-    exclude:
-      - tag
-      - promote
-      - rollback
-
-depends_on:
-  - build
-
-workspace:
-  path: /alpine-pkg-glibc
-
-steps:
-  - name: upload master
+  - name: Upload unreleased tag
     image: golang:alpine
     environment:
       GITHUB_TOKEN:
@@ -138,24 +75,12 @@ steps:
     # upload to github release
     - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER --prerelease --delete unreleased packages
     - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER --prerelease unreleased packages/builder/x86_64
+    when:
+      event:
+        - push
+        - pull_request
 
----
-kind: pipeline
-type: kubernetes
-name: upload-tag
-
-trigger:
-  event:
-    - tag
-
-depends_on:
-  - build
-
-workspace:
-  path: /alpine-pkg-glibc
-
-steps:
-  - name: upload tag
+  - name: Upload named tag
     image: golang:alpine
     environment:
       GITHUB_TOKEN:
@@ -169,9 +94,40 @@ steps:
     # upload to github release
     - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER $DRONE_TAG packages
     - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER $DRONE_TAG packages/builder/x86_64
+    when:
+      event:
+        - tag
+
+  - name: Run doc tests
+    image: alpine:latest
+    commands:
+      - cd /alpine-pkg-glibc
+      # install required packages
+      - apk add --no-cache git openssh-client
+      # parse and run installation steps
+      - |
+        while read line
+        do
+          echo "$line" | sed -e '/^[#:]/D' -e '/^$/D' -e '/^apk/p' -e '/^wget/p' -e '/^[A-z]/D' | sh -ex
+        done < README.md
+    when:
+      event:
+        - tag
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: signature
-hmac: f7e7610af821132c3d31d5219a8fc18f02cb78e9cb3174f8fd1cada9a83909fa
+hmac: 2e1e404440c75d4b8df615cfcc461aaba332342289841d9d4e83f672a50723f0
 
 ...
