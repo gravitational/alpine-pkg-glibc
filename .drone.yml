@@ -1,0 +1,165 @@
+---
+kind: pipeline
+type: kubernetes
+name: build
+
+trigger:
+  event:
+    - tag
+
+workspace:
+  path: /alpine-pkg-glibc
+
+steps:
+  - name: Download public signing key
+    image: docker:git
+    environment:
+      ALPINE_VERSION: 3.11
+      RSA_PRIVATE_KEY:
+        from_secret: RSA_PRIVATE_KEY
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+    - cd /alpine-pkg-glibc
+    # download public signing key
+    - wget https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub
+    - echo "823b54589c93b02497f1ba4dc622eaef9c813e6b0f0ebbb2f771e32adf9f4ef2  sgerrand.rsa.pub" | sha256sum -c -
+    # create docker volumes
+    - docker create --name input --volume /home/builder/package alpine:$ALPINE_VERSION /bin/true
+    - docker cp . input:/home/builder/package/
+    - docker create --name output --volume /packages alpine:$ALPINE_VERSION /bin/true
+    - docker cp sgerrand.rsa.pub output:/packages/
+    # build packages
+    - >-
+      docker run
+      --env RSA_PRIVATE_KEY="$RSA_PRIVATE_KEY"
+      --env RSA_PRIVATE_KEY_NAME="sgerrand.rsa"
+      --volumes-from input
+      --volumes-from output
+      sgerrand/alpine-abuild:$ALPINE_VERSION
+    # test package installation
+    - >-
+      docker run
+        --volumes-from output
+        alpine:$ALPINE_VERSION
+        sh -c "cp /packages/sgerrand.rsa.pub /etc/apk/keys/ && apk -U add --no-progress --upgrade /packages/builder/x86_64/*.apk"
+    # extract packages
+    - mkdir -p packages
+    - docker cp output:/packages/builder packages/
+    # remove docker volumes
+    - docker rm input
+    - docker rm output
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: doctests
+
+trigger:
+  branch:
+    - master
+  event:
+    exclude:
+      - tag
+      - promote
+      - rollback
+
+depends_on:
+  - build
+
+workspace:
+  path: /alpine-pkg-glibc
+
+steps:
+  - name: Run tests
+    image: alpine:latest
+    commands:
+      - cd /alpine-pkg-glibc
+      # install required packages
+      - apk add --no-cache git openssh-client
+      # parse and run installation steps
+      - |
+        while read line
+        do
+          echo "$line" | sed -e '/^[#:]/D' -e '/^$/D' -e '/^apk/p' -e '/^wget/p' -e '/^[A-z]/D' | sh -ex
+        done < README.md
+
+---
+kind: pipeline
+type: kubernetes
+name: upload-master
+
+trigger:
+  branch:
+    - master
+  event:
+    exclude:
+      - tag
+      - promote
+      - rollback
+
+depends_on:
+  - build
+
+workspace:
+  path: /alpine-pkg-glibc
+
+steps:
+  - name: upload master
+    image: golang:alpine
+    commands:
+    - cd /alpine-pkg-glibc
+    # install dependencies of go get
+    - apk add --no-cache git openssh-client
+    # install ghr executable
+    - go get github.com/tcnksm/ghr
+    # upload to github release
+    - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER --prerelease --delete unreleased packages
+    - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER --prerelease unreleased packages/builder/x86_64
+
+---
+kind: pipeline
+type: kubernetes
+name: upload-tag
+
+trigger:
+  event:
+    - tag
+
+depends_on:
+  - build
+
+workspace:
+  path: /alpine-pkg-glibc
+
+steps:
+  - name: upload tag
+    image: golang:alpine
+    commands:
+    - cd /alpine-pkg-glibc
+    # install dependencies of go get
+    - apk add --no-cache git openssh-client
+    # install ghr executable
+    - go get github.com/tcnksm/ghr
+    # upload to github release
+    - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER $DRONE_TAG packages
+    - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER $DRONE_TAG packages/builder/x86_64
+
+---
+kind: signature
+hmac: bff504245aaf0f2fd7006b5a595d7fcea692dd0d74c287d37e4048a9753ab42f
+
+...
