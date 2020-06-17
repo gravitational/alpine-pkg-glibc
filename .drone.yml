@@ -120,6 +120,9 @@ workspace:
 steps:
   - name: upload master
     image: golang:alpine
+    environment:
+      GITHUB_TOKEN:
+        from_secret: GITHUB_TOKEN
     commands:
     - cd /alpine-pkg-glibc
     # install dependencies of go get
@@ -148,6 +151,9 @@ workspace:
 steps:
   - name: upload tag
     image: golang:alpine
+    environment:
+      GITHUB_TOKEN:
+        from_secret: GITHUB_TOKEN
     commands:
     - cd /alpine-pkg-glibc
     # install dependencies of go get
@@ -160,6 +166,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9be8f1c54ce8c049e7f09b164dd204dd56aaad3dee1b9e7dd5e0850cc6f65363
+hmac: ea2067990ad325ecaaad22d34f702556c370c20adce2d8b46dd49c9010b4edf0
 
 ...
