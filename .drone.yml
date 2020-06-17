@@ -26,6 +26,8 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+    # wait for docker
+    - sleep 5
     - cd /alpine-pkg-glibc
     # download public signing key
     - wget https://gist.githubusercontent.com/webvictim/a02fe5a0146e381307b5cb6901b617b1/raw/790df9d2ce758793d3df96d7cda570c69eecabbf/gravitational.rsa.pub
@@ -170,6 +172,6 @@ steps:
 
 ---
 kind: signature
-hmac: a37ff87ea571b9c1990c475e26e6e4b7d55514e41634e57820f946c83e5b932c
+hmac: af313f2a4dfbe3740e2a66a52825f914236866e14c04c45937caa77f29b83a68
 
 ...
