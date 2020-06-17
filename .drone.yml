@@ -23,27 +23,27 @@ steps:
     commands:
     - cd /alpine-pkg-glibc
     # download public signing key
-    - wget https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub
-    - echo "823b54589c93b02497f1ba4dc622eaef9c813e6b0f0ebbb2f771e32adf9f4ef2  sgerrand.rsa.pub" | sha256sum -c -
+    - wget https://gist.githubusercontent.com/webvictim/a02fe5a0146e381307b5cb6901b617b1/raw/790df9d2ce758793d3df96d7cda570c69eecabbf/gravitational.rsa.pub
+    - echo "7d8a43857988950fdd6767b165b098c46a59cf4c6f8b823edecc292f40b4016c  gravitational.rsa.pub" | sha256sum -c -
     # create docker volumes
     - docker create --name input --volume /home/builder/package alpine:$ALPINE_VERSION /bin/true
     - docker cp . input:/home/builder/package/
     - docker create --name output --volume /packages alpine:$ALPINE_VERSION /bin/true
-    - docker cp sgerrand.rsa.pub output:/packages/
+    - docker cp gravitational.rsa.pub output:/packages/
     # build packages
     - >-
       docker run
       --env RSA_PRIVATE_KEY="$RSA_PRIVATE_KEY"
-      --env RSA_PRIVATE_KEY_NAME="sgerrand.rsa"
+      --env RSA_PRIVATE_KEY_NAME="gravitational.rsa"
       --volumes-from input
       --volumes-from output
-      sgerrand/alpine-abuild:$ALPINE_VERSION
+      quay.io/docker-alpine-abuild:$ALPINE_VERSION
     # test package installation
     - >-
       docker run
         --volumes-from output
         alpine:$ALPINE_VERSION
-        sh -c "cp /packages/sgerrand.rsa.pub /etc/apk/keys/ && apk -U add --no-progress --upgrade /packages/builder/x86_64/*.apk"
+        sh -c "cp /packages/gravitational.rsa.pub /etc/apk/keys/ && apk -U add --no-progress --upgrade /packages/builder/x86_64/*.apk"
     # extract packages
     - mkdir -p packages
     - docker cp output:/packages/builder packages/
@@ -160,6 +160,6 @@ steps:
 
 ---
 kind: signature
-hmac: bff504245aaf0f2fd7006b5a595d7fcea692dd0d74c287d37e4048a9753ab42f
+hmac: 9be8f1c54ce8c049e7f09b164dd204dd56aaad3dee1b9e7dd5e0850cc6f65363
 
 ...
