@@ -1,0 +1,133 @@
+---
+kind: pipeline
+type: kubernetes
+name: build
+
+trigger:
+  branch:
+    - master
+  event:
+    exclude:
+      - promote
+      - rollback
+  ref:
+    exclude:
+      - refs/tags/unreleased
+
+workspace:
+  path: /alpine-pkg-glibc
+
+steps:
+  - name: Build package
+    image: docker:git
+    environment:
+      ALPINE_VERSION: 3.11
+      RSA_PRIVATE_KEY:
+        from_secret: RSA_PRIVATE_KEY
+      REPO: quay.io
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+    # wait for docker
+    - sleep 5
+    - cd /alpine-pkg-glibc
+    # download public signing key
+    - wget https://gist.githubusercontent.com/webvictim/a02fe5a0146e381307b5cb6901b617b1/raw/790df9d2ce758793d3df96d7cda570c69eecabbf/gravitational.rsa.pub
+    - echo "0738b94e843f9bd40a3db9f6ec97383ade8080290daf505b16283af4c2734699  gravitational.rsa.pub" | sha256sum -c -
+    # create docker volumes
+    - docker create --name input --volume /home/builder/package alpine:$ALPINE_VERSION /bin/true
+    - docker cp . input:/home/builder/package/
+    - docker create --name output --volume /packages alpine:$ALPINE_VERSION /bin/true
+    - docker cp gravitational.rsa.pub output:/packages/
+    # build packages
+    - >-
+      docker run
+      --env RSA_PRIVATE_KEY="$RSA_PRIVATE_KEY"
+      --env RSA_PRIVATE_KEY_NAME="gravitational.rsa"
+      --volumes-from input
+      --volumes-from output
+      $REPO/gravitational/docker-alpine-abuild:$ALPINE_VERSION
+    # test package installation
+    - >-
+      docker run
+      --volumes-from output
+      alpine:$ALPINE_VERSION
+      sh -c "cp /packages/gravitational.rsa.pub /etc/apk/keys/ && apk -U add --no-progress --upgrade /packages/builder/x86_64/*.apk"
+    # extract packages
+    - mkdir -p packages
+    - docker cp output:/packages/builder packages/
+    # remove docker volumes
+    - docker rm input
+    - docker rm output
+
+  - name: Upload unreleased tag
+    image: golang:alpine
+    environment:
+      GITHUB_TOKEN:
+        from_secret: GITHUB_TOKEN
+    commands:
+    - cd /alpine-pkg-glibc
+    # install dependencies of go get
+    - apk add --no-cache git openssh-client
+    # install ghr executable
+    - go get github.com/tcnksm/ghr
+    # upload to github release
+    - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER --prerelease --delete unreleased packages
+    - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER --prerelease unreleased packages/builder/x86_64
+    when:
+      event:
+        - push
+        - pull_request
+
+  - name: Upload named tag
+    image: golang:alpine
+    environment:
+      GITHUB_TOKEN:
+        from_secret: GITHUB_TOKEN
+    commands:
+    - cd /alpine-pkg-glibc
+    # install dependencies of go get
+    - apk add --no-cache git openssh-client
+    # install ghr executable
+    - go get github.com/tcnksm/ghr
+    # upload to github release
+    - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER $DRONE_TAG packages
+    - ghr -r $DRONE_REPO_NAME -u $DRONE_REPO_OWNER $DRONE_TAG packages/builder/x86_64
+    when:
+      event:
+        - tag
+
+  - name: Run doc tests
+    image: alpine:latest
+    commands:
+      - cd /alpine-pkg-glibc
+      # install required packages
+      - apk add --no-cache git openssh-client
+      # parse and run installation steps
+      - |
+        while read line
+        do
+          echo "$line" | sed -e '/^[#:]/D' -e '/^$/D' -e '/^apk/p' -e '/^wget/p' -e '/^[A-z]/D' | sh -ex
+        done < README.md
+    when:
+      event:
+        - tag
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: signature
+hmac: 2e1e404440c75d4b8df615cfcc461aaba332342289841d9d4e83f672a50723f0
+
+...
