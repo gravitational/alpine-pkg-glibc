@@ -48,9 +48,9 @@ steps:
     # test package installation
     - >-
       docker run
-        --volumes-from output
-        alpine:$ALPINE_VERSION
-        sh -c "cp /packages/gravitational.rsa.pub /etc/apk/keys/ && apk -U add --no-progress --upgrade /packages/builder/x86_64/*.apk"
+      --volumes-from output
+      alpine:$ALPINE_VERSION
+      sh -c "cp /packages/gravitational.rsa.pub /etc/apk/keys/ && apk -U add --no-progress --upgrade /packages/builder/x86_64/*.apk"
     # extract packages
     - mkdir -p packages
     - docker cp output:/packages/builder packages/
@@ -172,6 +172,6 @@ steps:
 
 ---
 kind: signature
-hmac: af313f2a4dfbe3740e2a66a52825f914236866e14c04c45937caa77f29b83a68
+hmac: f7e7610af821132c3d31d5219a8fc18f02cb78e9cb3174f8fd1cada9a83909fa
 
 ...
