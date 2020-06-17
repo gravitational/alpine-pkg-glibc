@@ -4,8 +4,12 @@ type: kubernetes
 name: build
 
 trigger:
+  branch:
+    - master
   event:
-    - tag
+    exclude:
+      - promote
+      - rollback
 
 workspace:
   path: /alpine-pkg-glibc
@@ -17,6 +21,7 @@ steps:
       ALPINE_VERSION: 3.11
       RSA_PRIVATE_KEY:
         from_secret: RSA_PRIVATE_KEY
+      REPO: quay.io
     volumes:
       - name: dockersock
         path: /var/run
@@ -37,7 +42,7 @@ steps:
       --env RSA_PRIVATE_KEY_NAME="gravitational.rsa"
       --volumes-from input
       --volumes-from output
-      quay.io/docker-alpine-abuild:$ALPINE_VERSION
+      $REPO/gravitational/docker-alpine-abuild:$ALPINE_VERSION
     # test package installation
     - >-
       docker run
@@ -73,7 +78,6 @@ trigger:
     - master
   event:
     exclude:
-      - tag
       - promote
       - rollback
 
@@ -166,6 +170,6 @@ steps:
 
 ---
 kind: signature
-hmac: ea2067990ad325ecaaad22d34f702556c370c20adce2d8b46dd49c9010b4edf0
+hmac: 57a5b8ca93e85eb627acbfd0de7163992ee327a2ea3aada76f5db2bd5d58c270
 
 ...
